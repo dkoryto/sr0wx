@@ -31,39 +31,43 @@ class MeteoOnet(SR0WXModule):
 
     def parseForecastDesc(self, html):
         match = html.find_all("div", {"class": "forecastDesc"})[0].text.strip()
-        return self.__language.trim_pl(
-            match.replace(" ", "_").replace(",", " ").replace("\n", " ")
-        )
+        # klucze sampli opisów w słowniku powstały przez zamianę każdego znaku
+        # spoza [a-z0-9] na "_", np. "przeja_nienia__zachmurzenie_umiarkowane"
+        return re.sub("[^a-z0-9]", "_", match.lower())
 
-    def parseTemperature(self, html):
-        match = html.find_all("li")[0].find_all("span")[1]
-        tempText = re.sub("[^0-9]", "", match.text)
-        temp = self.__language.read_temperature(int(tempText))
-        return temp
+    def parseValue(self, html, label):
+        """Liczba z pozycji listy o etykiecie `label`, None gdy jej nie ma.
 
-    def parseClouds(self, html):
-        match = html.find_all("li")[2].find_all("span")[1]
-        tempText = re.sub("[^0-9]", "", match.text)
-        temp = self.__language.read_percent(int(tempText))
-        return temp
+        Pozycje są wyszukiwane po etykiecie, nie po indeksie -- onet zmienia
+        kolejność i zestaw pól (ciśnienie zniknęło, na jego miejscu pojawiła
+        się szansa opadów)."""
+        for li in html.find_all("li"):
+            spans = li.find_all("span")
+            if len(spans) >= 2 and spans[0].text.strip().startswith(label):
+                match = re.search(r"[-\u2212]?\d+", spans[1].text)
+                if match is not None:
+                    return int(match.group().replace("\u2212", "-"))
+        return None
 
-    def parseWind(self, html):
-        match = html.find_all("li")[3].find_all("span")[1]
-        tempText = re.sub("[^0-9]", "", match.text)
-        temp = self.__language.read_speed(int(tempText), "kmph")
-        return temp
-
-    def parsePressure(self, html):
-        match = html.find_all("li")[5].find_all("span")[1]
-        tempText = re.sub("[^0-9]", "", match.text)
-        temp = self.__language.read_pressure(int(tempText))
-        return temp
-
-    def parseHumidity(self, html):
-        match = html.find_all("li")[6].find_all("span")[1]
-        tempText = re.sub("[^0-9]", "", match.text)
-        temp = self.__language.read_percent(int(tempText))
-        return temp
+    def parseConditions(self, html):
+        parts = [self.parseForecastDesc(html)]
+        temp = self.parseValue(html, "T. odczuw")
+        if temp is not None:
+            parts += [" _ ", "temperatura_odczuwalna", self.__language.read_temperature(temp)]
+        clouds = self.parseValue(html, "Zachm")
+        if clouds is not None:
+            parts += [" _ ", "pokrywa_chmur", self.__language.read_percent(clouds)]
+        wind = self.parseValue(html, "Wiatr")
+        if wind is not None:
+            parts += [" _ ", "predkosc_wiatru", self.__language.read_speed(wind, "kmph")]
+        pressure = self.parseValue(html, "Ciśnienie")
+        if pressure is not None:
+            parts += [" _ ", "cisnienie", self.__language.read_pressure(pressure)]
+        humidity = self.parseValue(html, "Wilgotno")
+        if humidity is not None:
+            parts += [" _ ", "wilgotnosc", self.__language.read_percent(humidity)]
+        parts.append(" _ ")
+        return " ".join(parts)
 
     def get_data(self):
         rawHtml = self.downloadFile(self.__service_url)
@@ -76,57 +80,19 @@ class MeteoOnet(SR0WXModule):
         if self.__saytime:
             message += " ".join(["stan_pogody_z_godziny", self.getHour(), " _ "])
         if self.__current:
-            print(self.parseForecastDesc(now))
-            message += " ".join(
-                [
-                    self.parseForecastDesc(now),
-                    " _ " "pokrywa_chmur",
-                    self.parseClouds(now),
-                    " _ " "temperatura",
-                    self.parseTemperature(now),
-                    "predkosc_wiatru",
-                    self.parseWind(now),
-                    " _ " "cisnienie",
-                    self.parsePressure(now),
-                    "wilgotnosc",
-                    self.parseHumidity(now),
-                    " _ ",
-                ]
-            )
+            message += self.parseConditions(now)
         message += " ".join(
             [
                 "prognoza_na_nastepne",
                 "cztery",
                 "godziny",
                 " _ ",
-                self.parseForecastDesc(after),
-                " _ " "pokrywa_chmur",
-                self.parseClouds(after),
-                " _ " "temperatura",
-                self.parseTemperature(after),
-                "predkosc_wiatru",
-                self.parseWind(after),
-                " _ " "cisnienie",
-                self.parsePressure(after),
-                "wilgotnosc",
-                self.parseHumidity(after),
-                " _ ",
+                self.parseConditions(after),
                 "prognoza_na_nastepne",
                 "dwanascie",
                 "godzin",
                 " _ ",
-                self.parseForecastDesc(forecast),
-                " _ " "pokrywa_chmur",
-                self.parseClouds(forecast),
-                " _ " "temperatura",
-                self.parseTemperature(forecast),
-                "predkosc_wiatru",
-                self.parseWind(forecast),
-                " _ " "cisnienie",
-                self.parsePressure(forecast),
-                "wilgotnosc",
-                self.parseHumidity(forecast),
-                " _ ",
+                self.parseConditions(forecast),
             ]
         )
         return(

@@ -31,7 +31,8 @@ class Fires(SR0WXModule):
                 rows.append(els)
 
         for row in rows:
-            if len(row) > 1 and self.__zone in row[0]:
+            # dokładne dopasowanie, "5_A" nie może pasować do "Strefa 15_A"
+            if len(row) > 1 and row[0].split(" - ")[0].strip() == f"Strefa {self.__zone}":
                 return row[1:]
 
     def parseLabel(self, label, l):
@@ -56,8 +57,8 @@ class Fires(SR0WXModule):
 
     def processData(self, row):
         if row == "brak danych":
-            return None
             self.__logger.warning("Brak danych z obszaru")
+            return None
         elif " - " in row and len(row.split()) == 3:
             return row.split()[0]
         else:
@@ -94,24 +95,15 @@ class Fires(SR0WXModule):
                         else:
                             dictmsg[date] = warn
                 message = "zagroz_enie_poz_arowe_laso_w _ "
-                sk = 0
-                for i in range(len(dictmsg)):
-                    if sk > 0:
-                        sk -= 1
-                        continue
-                    ind = []
-                    for j in range(i, len(dictmsg)):
-                        if list(dictmsg.values())[i] == list(dictmsg.values())[j]:
-                            ind.append(j)
-                    sk = len(ind) - 1
-                    msglist = []
-                    for i in ind:
-                        msglist.append(list(dictmsg.keys())[i])
+                # dni o tym samym stopniu zagrożenia czytane razem,
+                # w kolejności pierwszego wystąpienia stopnia
+                groups = {}
+                for date, warn in dictmsg.items():
+                    groups.setdefault(warn, []).append(date)
+                for warn, msglist in groups.items():
                     if len(msglist) > 1:
                         msglist.insert(len(msglist) - 1, "i")
-                    message += " ".join(
-                        msglist + [self.__codes[list(dictmsg.values())[i]], "_ "]
-                    )
+                    message += " ".join(msglist + [self.__codes[warn], "_ "])
                 return(
                     {
                         "message": message,

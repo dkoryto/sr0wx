@@ -81,7 +81,10 @@ class AirGios(SR0WXModule):
         for value in list(indexes.keys())[::-1]:
             if value in self.__sensors:
                 ind =  indexes[value]
-                if value in values:
+                if ind not in self.__index_values:
+                    # GIOŚ zwraca -1 gdy indeks dla czujnika nie jest wyliczony
+                    self.__logger.warning(f"Brak indeksu dla pomiaru {value}")
+                elif value in values:
                     if ind > 0:
                         message+=" ".join([self.__sensors[value], self.__language.read_micrograms(round(values[value])), self.__index_values[ind], "_ "])
                     else:

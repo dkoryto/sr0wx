@@ -101,7 +101,8 @@ class GeoMagnetic(SR0WXModule):
 
     def getDailyFluctuation(self, data):
         values = list(data.values())
-        return int(max(values)) - int(min(values))
+        # wartości są w skali 0-8, różnica 8 też jest "ekstremalna"
+        return min(int(max(values)) - int(min(values)), max(self.__fluctuations))
 
     def get_data(self):
         values = self.getDataParsedHtmlData()

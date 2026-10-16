@@ -43,4 +43,3 @@ class MeteoImgw(SR0WXModule):
         self.__logger.info("::: Pobieranie aktualnych danych pogodowych...")
         stations = self.requestData(self.__service_url, self.__logger, 15, 3).json()
         station = self.getClosestStation(stations)
-        print(station)

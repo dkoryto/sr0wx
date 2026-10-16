@@ -32,9 +32,9 @@ class MeteoStation(SR0WXModule):
         w = True
         counter = 0
         while w:
+            data = []
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
             try:
-                data = []
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
                 sock.settimeout(30)
                 for i in self.__coms:
                     sock.sendto(i.encode("UTF-8"), (ip, port))
@@ -60,6 +60,9 @@ class MeteoStation(SR0WXModule):
                     )
                     con.send(None)
                     con.close()
+                    w = False
+            finally:
+                sock.close()
 
     def compare(self):
         data = []
@@ -101,6 +104,9 @@ class MeteoStation(SR0WXModule):
             else:
                 dataf.append(data[i])
 
+        if dataf == []:
+            raise Exception("No functioning stations")
+
         prefered_index = 0
         prefered_atime = dataf[0][self.__coms.index("atime\n")]
         for i in range(1, len(dataf)):
@@ -113,16 +119,15 @@ class MeteoStation(SR0WXModule):
             if d[self.__coms.index("apress\n")] != 0.0:
                 apress += d[self.__coms.index("apress\n")]
                 c += 1
-        apress = apress / c
-        for i in range(len(dataf)):
-            if dataf[i][self.__coms.index("apress\n")] == 0.0:
-                dataf[i][self.__coms.index("apress\n")] = apress
+        # gdy żadna stacja nie podała ciśnienia zostaje 0.0, get_data je pomija
+        if c > 0:
+            apress = apress / c
+            for i in range(len(dataf)):
+                if dataf[i][self.__coms.index("apress\n")] == 0.0:
+                    dataf[i][self.__coms.index("apress\n")] = apress
 
-        if dataf == []:
-            raise Exception("No functioning stations")
-        else:
-            self.__logger.info(f"Using station {self.__ip[prefered_index]}")
-            return dataf[prefered_index]
+        self.__logger.info(f"Using station {prefered_index + 1} of {len(dataf)} functioning")
+        return dataf[prefered_index]
 
     def get_data(self):
         data = self.compare()

@@ -72,14 +72,15 @@ class VhfTropo(SR0WXModule):
     def prepareSamplesCoordinates(self, x_center, y_center, size, maxWidth, maxHeight):
         half_size = size // 2
 
-        if y_center + half_size > maxHeight:
-            y_center = maxHeight - half_size
+        # ostatni poprawny indeks piksela to max - 1
+        if y_center + half_size > maxHeight - 1:
+            y_center = maxHeight - 1 - half_size
 
         if y_center - half_size < 0:
             y_center = half_size
 
-        if x_center + half_size > maxWidth:
-            x_center = maxWidth - half_size
+        if x_center + half_size > maxWidth - 1:
+            x_center = maxWidth - 1 - half_size
 
         if x_center - half_size < 0:
             x_center = half_size
@@ -150,8 +151,13 @@ class VhfTropo(SR0WXModule):
             colorHex = row[0]
             percentage = row[1]
             colorPunctation = self.getColorPunctation(colorHex)
+            # nieznany kolor (np. krawędź antyaliasingu) nie rozcieńcza wyniku
+            if colorPunctation is False:
+                continue
             divider += percentage
             score += percentage * colorPunctation
+        if divider == 0:
+            return 0
         conditionValue = score / divider
 
         return conditionValue

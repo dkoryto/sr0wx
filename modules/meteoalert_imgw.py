@@ -140,6 +140,9 @@ class MeteoAlertImgw(SR0WXModule):
             kod = komets["komets"][i]["Phenomenon"][0]["Code"]
             if kod in warnings_used:
                 self.__logger.warning("Powtórzenie ostrzeżenia: " + kod)
+            elif kod not in self.komcodes:
+                # nieznany kod pomija tylko ten komunikat, a nie cały moduł
+                self.__logger.error(f"Nieznany kod komunikatu: {kod}, pomijam")
             else:
                 warnings_used.append(kod)
                 wazne_do = komets["komets"][i]["LxValidTo"]
@@ -156,6 +159,10 @@ class MeteoAlertImgw(SR0WXModule):
             kod = alerts["warnings"][i]["PhenomenonCode"]
             if kod in warnings_used:
                 self.__logger.warning("Powtórzenie ostrzeżenia: " + kod)
+            elif kod not in self.codes or alerts["warnings"][i]["Level"] not in self.stopnie:
+                self.__logger.error(
+                    f"Nieznany kod ostrzeżenia: {kod}, stopień: {alerts['warnings'][i]['Level']}, pomijam"
+                )
             else:
                 warnings_used.append(kod)
                 stopien = alerts["warnings"][i]["Level"]
@@ -179,6 +186,8 @@ class MeteoAlertImgw(SR0WXModule):
                     kod = alerts_hydro["warnings"][i]["WarnHydro"]["Phenomena"]
                     if kod in hydro_used:
                         self.__logger.warning("Powtórzenie ostrzeżenia: " + kod)
+                    elif kod not in self.codes:
+                        self.__logger.error(f"Nieznany kod ostrzeżenia hydrologicznego: {kod}, pomijam")
                     else:
                         hydro_used.append(kod)
                         prawd = alerts_hydro["warnings"][i]["WarnHydro"]["Probability"]

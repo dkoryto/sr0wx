@@ -32,7 +32,10 @@ class SunRiseSet(SR0WXModule):
         Gdynia.pressure = self.__pre
         Gdynia.temp = self.__temp
         Gdynia.horizon = self.__hori
-        Gdynia.date = datetime.datetime.now()
+        # ephem traktuje datę jako UTC, czas lokalny przesuwał start
+        # wyszukiwania i w oknie tuż przed wschodem/zachodem podawał
+        # zdarzenie z następnego dnia
+        Gdynia.date = ephem.now()
         sun = ephem.Sun()
         sunrise = " ".join(
             [
@@ -59,7 +62,6 @@ class SunRiseSet(SR0WXModule):
             ]
         )
         message = " ".join(["kalendarium", "_", sunrise, "_", sunset])
-        Gdynia.next_antitransit
         self.__logger.info(f"Wschód: {ephem.localtime(Gdynia.next_rising(sun))}")
         self.__logger.info(f"Zachód: {ephem.localtime(Gdynia.next_setting(sun))}")
         return(

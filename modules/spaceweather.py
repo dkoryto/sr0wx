@@ -1,9 +1,16 @@
 # by SQ2IPS
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from sr0wx_module import SR0WXModule
 import logging
-from datetime import datetime
+
+
+def parse_time_tag(tag):
+    """Znacznik czasu SWPC (UTC) w kilku spotykanych formatach."""
+    tag = tag.rstrip("Z").replace(" ", "T")
+    if "." in tag:
+        tag = tag.split(".")[0]
+    return datetime.strptime(tag, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
 
 
 class SpaceWeather(SR0WXModule):
@@ -23,21 +30,25 @@ class SpaceWeather(SR0WXModule):
         return data.json()
 
     def ProcessG(self, data):
-        Kp = data[0].index("Kp")
-        date = data[0].index("time_tag")
-        del data[0]
+        # SWPC zwracało listę list z nagłówkiem w pierwszym wierszu, teraz
+        # zwraca listę obiektów -- obsługiwane są oba formaty
+        if data and isinstance(data[0], list):
+            header = data[0]
+            data = [dict(zip(header, row)) for row in data[1:]]
+        if not data:
+            self.__logger.warning("Brak danych Kp")
+            return None
         if self.__geomagneticShort:
-            val = float(data[-1][Kp])
+            val = float(data[-1]["Kp"])
             self.__logger.info(
-                f"Burze geomagnetyczne geomagnetyczne (chwilowe): Kp={val}, data: {data[-1][date]}"
+                f"Burze geomagnetyczne geomagnetyczne (chwilowe): Kp={val}, data: {data[-1]['time_tag']}"
             )
         else:
-            val_list = []
-            for d in data:
-                if (
-                    datetime.now() - datetime.strptime(d[date], "%Y-%m-%d %H:%M:%S.000")
-                ).days < 1:
-                    val_list.append(float(d[Kp]))
+            since = datetime.now(timezone.utc) - timedelta(days=1)
+            val_list = [float(d["Kp"]) for d in data if parse_time_tag(d["time_tag"]) >= since]
+            if not val_list:
+                self.__logger.warning("Brak danych Kp z ostatniej doby")
+                return None
             val = max(val_list)
             self.__logger.info(f"Burze geomagnetyczne geomagnetyczne: Kp={val}")
 
@@ -57,9 +68,11 @@ class SpaceWeather(SR0WXModule):
         return message
 
     def ProcessR(self, data):
-        val_list = []
-        for d in data:
-            val_list.append(float(d["flux"]))
+        # skala R NOAA jest zdefiniowana dla pasma 0.1-0.8 nm
+        val_list = [float(d["flux"]) for d in data if d.get("energy", "0.1-0.8nm") == "0.1-0.8nm"]
+        if not val_list:
+            self.__logger.warning("Brak danych strumienia promieniowania X")
+            return None
         val = max(val_list)
         self.__logger.info(f"zakłucenia jonosfery {val}")
 
@@ -79,13 +92,16 @@ class SpaceWeather(SR0WXModule):
         return message
 
     def ProcessS(self, data):
-        val_list = []
-
-        for d in data:
-            if (
-                datetime.now() - datetime.strptime(d["time_tag"], "%Y-%m-%dT%H:%M:%SZ")
-            ).seconds // 3600 <= 6:
-                val_list.append(float(d["flux"]))
+        # skala S NOAA jest zdefiniowana dla protonów >=10 MeV, ostatnie 6h
+        since = datetime.now(timezone.utc) - timedelta(hours=6)
+        val_list = [
+            float(d["flux"])
+            for d in data
+            if d.get("energy", ">=10 MeV") == ">=10 MeV" and parse_time_tag(d["time_tag"]) >= since
+        ]
+        if not val_list:
+            self.__logger.warning("Brak danych strumienia protonów z ostatnich 6h")
+            return None
         val = max(val_list)
 
         self.__logger.info(f"Burze radiacyjne: {val}")

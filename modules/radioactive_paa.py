@@ -13,8 +13,8 @@ class RadioactivePaa(SR0WXModule):
         self.__language = language
         self.__logger = logging.getLogger(__name__)
 
-    def request(self):
-        date = datetime.now().strftime("%Y-%m-%dT00:00:00.000Z")
+    def request(self, day):
+        date = day.strftime("%Y-%m-%dT00:00:00.000Z")
         url = f"{self.__service_url}/{self.__sensor_id}?dateFrom={date}&dateTo={date}"
         self.__logger.info("::: Pobieranie danych...")
         data = self.requestData(url, self.__logger, 10, 3).json()
@@ -44,7 +44,13 @@ class RadioactivePaa(SR0WXModule):
 
 
     def get_data(self):
-        data = self.request()
+        data = self.request(datetime.now())
+        if not data:
+            # tuż po północy nie ma jeszcze pomiarów z bieżącego dnia
+            self.__logger.info("Brak pomiarów z dzisiaj, pobieram z wczoraj")
+            data = self.request(datetime.now() - timedelta(days=1))
+        if not data:
+            raise ValueError("Brak pomiarów z czujnika")
         value = self.processData(data[-1])
         value_sr = self.processDataSr(data)
 

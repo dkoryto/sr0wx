@@ -30,6 +30,7 @@ class PropagationHamqsl(SR0WXModule):
     def process(self, root):
         conditions_day = {}
         conditions_night = {}
+        noise = None
         for e in root[0]:
             if e.tag == "calculatedconditions":
                 for band in e:
@@ -101,7 +102,7 @@ class PropagationHamqsl(SR0WXModule):
             text_day = self.getText(conditions_day)
             text_night = self.getText(conditions_night)
             noise_level = None
-            if self.__radioNoise:
+            if self.__radioNoise and noise is not None:
                 try:
                     noise_level = self.getNoise(noise)
                 except Exception as e:
