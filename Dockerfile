@@ -8,7 +8,7 @@ ARG GID=1000
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      python3 python3-pip python3-venv pulseaudio \
+      python3 python3-pip python3-venv pulseaudio ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g ${GID} sr0wx \
@@ -26,7 +26,7 @@ RUN python3 -m venv wxenv \
  && ./wxenv/bin/pip install --no-cache-dir --upgrade pip \
  && ./wxenv/bin/pip install --no-cache-dir -r requirements.txt
 
-COPY --chown=sr0wx:sr0wx sr0wx.py config.py colorcodes.py sr0wx_module.py ./
+COPY --chown=sr0wx:sr0wx sr0wx.py config.py config_baltyk.py colorcodes.py sr0wx_module.py ./
 COPY --chown=sr0wx:sr0wx modules/ ./modules/
 COPY --chown=sr0wx:sr0wx pl_google/ ./pl_google/
 COPY --chown=sr0wx:sr0wx pyliczba/ ./pyliczba/
