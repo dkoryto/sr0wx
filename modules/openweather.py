@@ -78,7 +78,12 @@ class OpenWeather(SR0WXModule):
         }
 
     def downloadFile(self, url):
-        data = self.requestData(url, self.__logger)
+        data = self.requestData(
+            url,
+            self.__logger,
+            params={"lat": self.__lat, "lon": self.__lon, "units": "metric", "appid": self.__api_key},
+            secrets=[self.__api_key],
+        )
         return data.json()
 
     def getHour(self):
@@ -142,31 +147,12 @@ class OpenWeather(SR0WXModule):
         return msg
 
     def get_data(self):
+        if not self.__api_key:
+            raise ValueError("Brak klucza API OpenWeather (OPENWEATHER_KEY w .env)")
         self.__logger.info("::: Pobieram aktualne dane pogodowe...")
-        weather_service_url = (
-            self.__service_url
-            + "weather?lat="
-            + str(self.__lat)
-            + "&lon="
-            + str(self.__lon)
-            + "&units=metric&appid="
-            + self.__api_key
-        )
-        # weatherJson = JSON.loads(self.downloadFile(weather_service_url))
-        weatherJson = self.downloadFile(weather_service_url)
+        weatherJson = self.downloadFile(self.__service_url + "weather")
         self.__logger.info("::: Pobieram dane prognozy pogody...")
-        forecast_service_url = (
-            self.__service_url
-            + "forecast?lat="
-            + str(self.__lat)
-            + "&lon="
-            + str(self.__lon)
-            + "&units=metric&appid="
-            + self.__api_key
-        )
-        # forecastJsonAll = JSON.loads(
-        #    self.downloadFile(forecast_service_url))
-        forecastJsonAll = self.downloadFile(forecast_service_url)
+        forecastJsonAll = self.downloadFile(self.__service_url + "forecast")
         self.__logger.info("::: Przetwarzam dane prognozy pogody...")
         message = self.__start_message
         if self.__current:

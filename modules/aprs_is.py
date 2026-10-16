@@ -4,6 +4,8 @@ import aprslib
 from sr0wx_module import SR0WXModule
 
 class AprsIs(SR0WXModule):
+    side_effects = True
+
     def __init__(self, passwd, call, lat, lon, comment):
         self.__passwd = passwd
         self.__call = call
@@ -20,6 +22,9 @@ class AprsIs(SR0WXModule):
             minutes -= 60.0
         return f"{degrees:0{deg_digits}d}{minutes:05.2f}"
     def get_data(self):
+        if not self.__call or not self.__passwd:
+            self.__logger.warning("::: Brak APRS_CALL lub APRS_PASSWD w .env, pomijam APRS-IS")
+            return {"message": None, "source": ""}
         self.__logger.info("::: Wysyłanie ramki do APRS-IS...")
         AIS = None
         try:

@@ -25,6 +25,10 @@ from colorcodes import *
 class SR0WXModule:
     """Base class for SR0WX modules."""
 
+    # True for modules that send something out (APRS frame, ping, map
+    # marker) instead of only reading data, they are skipped in test mode
+    side_effects = False
+
     def __init__(self):
         pass
 
@@ -45,20 +49,38 @@ class SR0WXModule:
         msg = "This method should be implemented in child class"
         raise NotImplementedError(msg)
 
-    def requestData(self, url, logger, timeout=15, repeat=3, headers={}, impersonate="chrome"):
-        headers.update({'User-Agent': 'SR0WX/1.0'})
+    def __str__(self):
+        return self.__class__.__name__
+
+    def requestData(self, url, logger, timeout=15, repeat=3, headers=None, params=None, secrets=()):
+        """GET `url` with retries.
+
+        `secrets` -- values (API keys etc.) that must never reach the logs,
+        they are masked in every logged message and in the raised exception,
+        error messages of requests/curl_cffi contain the full URL.
+        """
+        headers = {**(headers or {}), 'User-Agent': 'SR0WX/1.0'}
+        secrets = [s for s in secrets if s]
+
+        def redact(text):
+            for s in secrets:
+                text = text.replace(s, "***")
+            return text
+
         data = None
         for i in range(repeat):
             try:
-                logger.info("::: Requesting data from address: " + url)
-                data = requests.get(url, timeout=timeout, headers=headers)
+                logger.info("::: Requesting data from address: " + redact(url))
+                data = requests.get(url, timeout=timeout, headers=headers, params=params)
                 data.raise_for_status()
                 break
             except Exception as e:
                 if i < repeat - 1:
-                    logger.exception(f"Exception getting data: {e}, trying again...")
+                    logger.error(redact(f"Exception getting data: {e}, trying again..."))
+                elif secrets:
+                    raise RuntimeError(redact(f"{type(e).__name__}: {e}")) from None
                 else:
-                    raise e
+                    raise
         logger.info("::: Dane pobrano, status OK")
         return data
 

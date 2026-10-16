@@ -231,6 +231,12 @@ elif modules_text is not None:
 else:
     modules = config.modules
 
+if test_mode:
+    skipped = [m for m in modules if m.side_effects]
+    if skipped:
+        logger.info(f"Test mode, skipping modules that send data out: {', '.join(map(str, skipped))}")
+    modules = [m for m in modules if not m.side_effects]
+
 # aux modules
 if config.aux_modules_inversion:
     aux_modules = {**config.aux_modules, **{v: k for k, v in config.aux_modules.items()}}
@@ -265,9 +271,11 @@ if config.check_for_updates and not offline_mode:
         local_hash = subprocess.check_output('git --no-pager log --format="%H" -n 1'.split()).decode().replace("\"", "")
         local_hash = "".join(local_hash.split())
 
-        global_hash = subprocess.check_output(f"git ls-remote {config.upstream_url}".split() + [branch]).decode().split()[0]
+        global_hash = subprocess.check_output(f"git ls-remote {config.upstream_url}".split() + [branch]).decode().split()
 
-        if local_hash == global_hash:
+        if not global_hash:
+            logger.warning(f"Branch '{branch}' not found in {config.upstream_url}, skipping update check.")
+        elif local_hash == global_hash[0]:
             logger.info("Version is up to date.")
         else:
             logger.warning("Newer version is available, use 'git pull' to update.")
@@ -547,46 +555,13 @@ if startTime is not None:
         logger.warning(f"Unable to wait for given time, got error: {e}, skipping...")
     time_wait_2 = time.time()
 
-nopi = True
-if config.rpi_pin is not None:
-    try:
-        import RPi.GPIO as GPIO
-
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(config.rpi_pin, GPIO.OUT)
-        GPIO.output(config.rpi_pin, GPIO.HIGH)
-        logger.info(COLOR_OKGREEN + f"GPIO PTT: ON, PIN: {config.rpi_pin}" + COLOR_ENDC)
-        nopi = False
-    except ImportError:
-        logger.warning("No Raspberry Pi GPIO module found, skipping...")
-    except Exception as e:
-        logger.error(f"Unable to turn GPIO ptt on, got error: {e}, skipping...")
-
-# Program should be able to "press PTT" via RS232. See ``config`` for
-# details.
-
-if config.serial_port is not None:
-    import serial
-
-    try:
-        ser = serial.Serial(config.serial_port, config.serial_baud_rate)
-        if config.serial_signal == "DTR":
-            logger.info(COLOR_OKGREEN + "Serial PTT: DTR: ON" + COLOR_ENDC)
-            ser.setDTR(1)
-            ser.setRTS(0)
-        else:
-            logger.info(COLOR_OKGREEN + "Serial PTT: RTS: ON" + COLOR_ENDC)
-            ser.setDTR(0)
-            ser.setRTS(1)
-    except Exception as e:
-        logger.error(
-            f"Failed to open serial port {config.serial_port}@{config.serial_baud_rate}: {e}"
-        )
-
 # PTT must be released even if the script dies in the middle of playback.
+# The handlers are registered before PTT is switched on, so there is no
+# window in which the transmitter is keyed with nothing to release it.
 # RPi.GPIO does not reset pins on interpreter exit, so a crash between
 # switching PTT on and off would leave the transmitter keyed indefinitely.
 
+nopi = True
 ptt_released = False
 
 
@@ -629,6 +604,41 @@ for sig_name in ("SIGTERM", "SIGINT", "SIGHUP"):
     sig = getattr(signal, sig_name, None)
     if sig is not None:
         signal.signal(sig, ptt_signal_handler)
+
+if config.rpi_pin is not None:
+    try:
+        import RPi.GPIO as GPIO
+
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(config.rpi_pin, GPIO.OUT)
+        GPIO.output(config.rpi_pin, GPIO.HIGH)
+        logger.info(COLOR_OKGREEN + f"GPIO PTT: ON, PIN: {config.rpi_pin}" + COLOR_ENDC)
+        nopi = False
+    except ImportError:
+        logger.warning("No Raspberry Pi GPIO module found, skipping...")
+    except Exception as e:
+        logger.error(f"Unable to turn GPIO ptt on, got error: {e}, skipping...")
+
+# Program should be able to "press PTT" via RS232. See ``config`` for
+# details.
+
+if config.serial_port is not None:
+    try:
+        import serial
+
+        ser = serial.Serial(config.serial_port, config.serial_baud_rate)
+        if config.serial_signal == "DTR":
+            logger.info(COLOR_OKGREEN + "Serial PTT: DTR: ON" + COLOR_ENDC)
+            ser.setDTR(1)
+            ser.setRTS(0)
+        else:
+            logger.info(COLOR_OKGREEN + "Serial PTT: RTS: ON" + COLOR_ENDC)
+            ser.setDTR(0)
+            ser.setRTS(1)
+    except Exception as e:
+        logger.error(
+            f"Failed to open serial port {config.serial_port}@{config.serial_baud_rate}: {e}"
+        )
 
 pygame.time.delay(config.marginDelay)
 

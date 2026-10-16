@@ -4,6 +4,8 @@ import logging
 from sr0wx_module import SR0WXModule
 
 class HealthChecksIo(SR0WXModule):
+    side_effects = True
+
     def __init__(self, service_url, uuid):
         self.__service_url = service_url
         self.__uuid = uuid

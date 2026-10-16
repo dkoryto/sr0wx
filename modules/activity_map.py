@@ -39,6 +39,8 @@ class ActivityMap(SR0WXModule):
         - `service_url`: mapping service url, defaults to SQ9ATK service
     """
 
+    side_effects = True
+
     def __init__(
         self,
         callsign,
